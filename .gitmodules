@@ -2,4 +2,4 @@
 	path = src/Emulator/Cores/tlib
 	url = https://github.com/RallySmith/tlib.git
 	branch = master
-	update = merge
+	update = rebase
