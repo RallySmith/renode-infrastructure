@@ -1,5 +1,5 @@
 [submodule "src/Emulator/Cores/tlib"]
 	path = src/Emulator/Cores/tlib
-	url = https://github.com/RallySmith/tlib.git
+	url = git@github.com:RallySmith/tlib.git
 	branch = master
 	update = rebase
