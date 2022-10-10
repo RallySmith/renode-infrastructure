@@ -437,7 +437,6 @@ namespace Antmicro.Renode.Peripherals.IRQControllers
                 break;
             default:
                 this.LogUnhandledWrite(offset, value);
-                return 0;
             }
         }
 
