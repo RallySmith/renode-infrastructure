@@ -20,7 +20,7 @@ using Antmicro.Renode.Utilities;
 namespace Antmicro.Renode.Peripherals.IRQControllers
 {
     [AllowedTranslations(AllowedTranslation.ByteToDoubleWord)]
-    public class NVIC : IDoubleWordPeripheral, IHasFrequency, IKnownSize, IIRQController
+    public class NVIC : IBytePeripheral, IWordPeripheral, IDoubleWordPeripheral, IHasFrequency, IKnownSize, IIRQController
     {
         public NVIC(Machine machine, long systickFrequency = 50 * 0x800000, byte priorityMask = 0xFF)
         {
@@ -168,13 +168,47 @@ namespace Antmicro.Renode.Peripherals.IRQControllers
             case Registers.ApplicationInterruptAndReset:
                 return HandleApplicationInterruptAndResetRead();
             case Registers.ConfigurableFaultStatus:
-                // this is not a full implementation but should be enough to get lazy FPU implementations to work.
-                this.DebugLog("ConfigurableFaultStatus read. Returning NOCP.");
-                return (1 << 19) /* NOCP */;
+                uint xCFSR = cpu.XConfigurableFaultStatus;
+                this.DebugLog("ReadDoubleWord:ConfigurableFaultStatus 0x{0:X} : returning 0x{1:X}", offset, xCFSR);
+                return xCFSR;
             case Registers.MPUType:
                 return 0x800; // 8 MPU regions
             case Registers.InterruptControllerType:
                 return 0b0111;
+            default:
+                this.LogUnhandledRead(offset);
+                return 0;
+            }
+        }
+
+        public ushort ReadWord(long offset)
+        {
+            switch((Registers)offset)
+            {
+            case Registers.ConfigurableFaultStatus:
+                 return (ushort)(cpu.XConfigurableFaultStatus & 0xFFFF);
+            case Registers.UsageFaultStatusRegister:
+                ushort xUFSR = (ushort)(cpu.XConfigurableFaultStatus >> 16);
+                this.DebugLog("ReadWord:UsageFaultStatusRegister 0x{0:X} : returning 0x{1:X}", offset, xUFSR);
+                return (ushort)xUFSR;
+            default:
+                this.LogUnhandledRead(offset);
+                return 0;
+            }
+        }
+
+        public byte ReadByte(long offset)
+        {
+            switch((Registers)offset)
+            {
+            case Registers.MemManageStatusRegister:
+                return (byte)(cpu.XConfigurableFaultStatus & 0xFF);
+            case Registers.BusFaultStatusRegister:
+                return (byte)((cpu.XConfigurableFaultStatus >> 8) & 0xFF);
+            case Registers.UsageFaultStatusRegister:
+                return (byte)((cpu.XConfigurableFaultStatus >> 16) & 0xFF);
+            case Registers.UsageFaultStatusHiRegister:
+                return (byte)((cpu.XConfigurableFaultStatus >> 24) & 0xFF);
             default:
                 this.LogUnhandledRead(offset);
                 return 0;
@@ -358,9 +392,52 @@ namespace Antmicro.Renode.Peripherals.IRQControllers
             case Registers.ConfigurationAndControl:
                 ccr = value;
                 break;
+            case Registers.ConfigurableFaultStatus:
+                cpu.XConfigurableFaultStatus = value; // tlib code will clear bits
+                break;
             default:
                 this.LogUnhandledWrite(offset, value);
                 break;
+            }
+        }
+
+        public void WriteWord(long offset, ushort value)
+        {
+            switch((Registers)offset)
+            {
+            case Registers.ConfigurableFaultStatus:
+                // For CFSR a write of 1 clears the corresponding bit
+                cpu.XConfigurableFaultStatus = (uint)value; // tlib code will clear bits
+                break;
+            case Registers.UsageFaultStatusRegister:
+                cpu.XConfigurableFaultStatus = (uint)(value << 16); // tlib code will clear bits
+                this.DebugLog("WriteWord:UsageFaultStatusRegister 0x{0:X} : value 0x{1:X} : CFSR now 0x{2:X}", offset, value, cpu.XConfigurableFaultStatus);
+                break;
+            default:
+                this.LogUnhandledWrite(offset, value);
+                break;
+            }
+        }
+
+        public void WriteByte(long offset, byte value)
+        {
+            switch((Registers)offset)
+            {
+            case Registers.MemManageStatusRegister:
+                cpu.XConfigurableFaultStatus = (uint)value;
+                break;
+            case Registers.BusFaultStatusRegister:
+                cpu.XConfigurableFaultStatus = ((uint)value << 8);
+                break;
+            case Registers.UsageFaultStatusRegister:
+                cpu.XConfigurableFaultStatus = ((uint)value << 16);
+                break;
+            case Registers.UsageFaultStatusHiRegister:
+                cpu.XConfigurableFaultStatus = ((uint)value << 24);
+                break;
+            default:
+                this.LogUnhandledWrite(offset, value);
+                return 0;
             }
         }
 
@@ -760,6 +837,10 @@ namespace Antmicro.Renode.Peripherals.IRQControllers
             SystemHandlerPriority3 = 0xD20,
             SystemHandlerControlAndState = 0xD24,
             ConfigurableFaultStatus = 0xD28,
+            MemManageStatusRegister = 0xD28,
+            BusFaultStatusRegister = 0xD29,
+            UsageFaultStatusRegister = 0xD2A,
+            UsageFaultStatusHiRegister = 0xD2B,
             HardFaultStatus = 0xD2C,
             DebugFaultStatus = 0xD30,
             // FPU registers 0xD88 .. F3C

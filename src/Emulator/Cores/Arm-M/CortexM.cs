@@ -114,6 +114,19 @@ namespace Antmicro.Renode.Peripherals.CPU
             }
         }
 
+        public uint XConfigurableFaultStatus
+        {
+            get
+            {
+                return tlibGetCfsr();
+            }
+
+            set
+            {
+                tlibSetCfsr(value);
+            }
+        }
+
         public override void InitFromElf(IELF elf)
         {
             // do nothing
@@ -226,6 +239,12 @@ namespace Antmicro.Renode.Peripherals.CPU
 
         [Import]
         private FuncUInt32 tlibGetXpsr;
+
+        [Import]
+        private FuncUInt32 tlibGetCfsr;
+
+        [Import]
+        private ActionUInt32 tlibSetCfsr;
 
         #pragma warning restore 649
     }
